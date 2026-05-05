@@ -1,4 +1,4 @@
-const API_URL = "https://4fc4-2409-40d2-3009-68bd-9969-89df-4fb0-91b9.ngrok-free.app/api/check";
+const API_URL = "https://pwd-ai.onrender.com/api/check";
 
 function isRealWebsite(url) {
     try {
