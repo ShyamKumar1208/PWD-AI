@@ -1,6 +1,6 @@
 const API_URL = "https://pwd-ai.onrender.com/api/check";
 
-// 🔥 Known trusted domains (for typo detection)
+// 🔥 Trusted domains for typo detection
 const TRUSTED_DOMAINS = [
     "google.com",
     "facebook.com",
@@ -12,13 +12,13 @@ const TRUSTED_DOMAINS = [
     "bing.com"
 ];
 
-// 🔥 Detect invalid / search URLs
+// 🔵 INVALID DETECTION (search queries + bad domains)
 function isRealWebsite(url) {
     try {
         const u = new URL(url);
         const hostname = u.hostname;
 
-        // ❌ Detect search queries
+        // ❌ Detect search pages (VERY IMPORTANT)
         if (url.includes("google.com/search") || url.includes("?q=")) {
             return false;
         }
@@ -32,9 +32,6 @@ function isRealWebsite(url) {
         // ❌ Invalid TLD
         if (!/^[a-zA-Z]{2,}$/.test(tld)) return false;
 
-        // ❌ Too short
-        if (parts.length < 2) return false;
-
         return true;
 
     } catch {
@@ -42,15 +39,27 @@ function isRealWebsite(url) {
     }
 }
 
-// 🔥 Detect typo domains (FAST local detection)
+// 🔴 TYPO DOMAIN DETECTION (fixed)
 function isTypoDomain(hostname) {
     hostname = hostname.toLowerCase();
 
+    // Remove www
+    if (hostname.startsWith("www.")) {
+        hostname = hostname.slice(4);
+    }
+
     return TRUSTED_DOMAINS.some(domain => {
-        // Example: yah00.com vs yahoo.com
+
+        // ✅ Exact match → SAFE
+        if (hostname === domain) return false;
+
+        // ✅ Allow subdomains → SAFE
+        if (hostname.endsWith("." + domain)) return false;
+
+        // 🔴 Detect typo (g00gle, micr0soft)
         const clean = hostname.replace(/0/g, "o").replace(/1/g, "l");
 
-        return clean.includes(domain) && hostname !== domain;
+        return clean === domain && hostname !== domain;
     });
 }
 
@@ -58,7 +67,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
     if (changeInfo.status === "complete" && tab.url) {
 
-        // Ignore browser internal pages
+        // Ignore internal browser pages
         if (
             tab.url.startsWith("chrome://") ||
             tab.url.startsWith("edge://") ||
@@ -77,7 +86,9 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             hostname = "";
         }
 
-        // 🔵 INVALID URL
+        // ================================
+        // 🔵 STEP 1: INVALID (BLUE)
+        // ================================
         if (!isRealWebsite(url)) {
 
             chrome.storage.local.set({ status: "invalid" });
@@ -90,10 +101,12 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                 }
             });
 
-            return;
+            return; // 🚨 STOP HERE (IMPORTANT)
         }
 
-        // 🔴 FAST TYPO DETECTION (no API call)
+        // ================================
+        // 🔴 STEP 2: TYPO DETECTION (FAST)
+        // ================================
         if (isTypoDomain(hostname)) {
 
             chrome.storage.local.set({ status: 1 });
@@ -116,7 +129,9 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             return;
         }
 
-        // 🔥 API CALL (FINAL CHECK)
+        // ================================
+        // 🔥 STEP 3: API CALL (FINAL CHECK)
+        // ================================
         fetch(API_URL, {
             method: "POST",
             headers: {
@@ -172,7 +187,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
             console.log("API ERROR:", err);
 
-            // fallback (optional)
+            // fallback → show invalid
             chrome.action.setIcon({
                 path: {
                     "16": "icons/invalid.png",
