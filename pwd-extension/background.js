@@ -1,19 +1,39 @@
 const API_URL = "https://pwd-ai.onrender.com/api/check";
 
-// ✅ FIXED URL VALIDATION
+// 🔥 Known trusted domains (for typo detection)
+const TRUSTED_DOMAINS = [
+    "google.com",
+    "facebook.com",
+    "amazon.com",
+    "paypal.com",
+    "microsoft.com",
+    "apple.com",
+    "yahoo.com",
+    "bing.com"
+];
+
+// 🔥 Detect invalid / search URLs
 function isRealWebsite(url) {
     try {
         const u = new URL(url);
         const hostname = u.hostname;
 
-        // Must contain at least one dot
+        // ❌ Detect search queries
+        if (url.includes("google.com/search") || url.includes("?q=")) {
+            return false;
+        }
+
+        // ❌ No dot = invalid
         if (!hostname.includes(".")) return false;
 
         const parts = hostname.split(".");
         const tld = parts[parts.length - 1];
 
-        // TLD must be valid (com, org, etc.)
+        // ❌ Invalid TLD
         if (!/^[a-zA-Z]{2,}$/.test(tld)) return false;
+
+        // ❌ Too short
+        if (parts.length < 2) return false;
 
         return true;
 
@@ -22,11 +42,23 @@ function isRealWebsite(url) {
     }
 }
 
+// 🔥 Detect typo domains (FAST local detection)
+function isTypoDomain(hostname) {
+    hostname = hostname.toLowerCase();
+
+    return TRUSTED_DOMAINS.some(domain => {
+        // Example: yah00.com vs yahoo.com
+        const clean = hostname.replace(/0/g, "o").replace(/1/g, "l");
+
+        return clean.includes(domain) && hostname !== domain;
+    });
+}
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
     if (changeInfo.status === "complete" && tab.url) {
 
-        // Ignore internal browser pages
+        // Ignore browser internal pages
         if (
             tab.url.startsWith("chrome://") ||
             tab.url.startsWith("edge://") ||
@@ -36,8 +68,17 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             return;
         }
 
-        // 🔵 INVALID URL CASE
-        if (!isRealWebsite(tab.url)) {
+        const url = tab.url;
+        let hostname = "";
+
+        try {
+            hostname = new URL(url).hostname;
+        } catch {
+            hostname = "";
+        }
+
+        // 🔵 INVALID URL
+        if (!isRealWebsite(url)) {
 
             chrome.storage.local.set({ status: "invalid" });
 
@@ -52,16 +93,38 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             return;
         }
 
-        // 🔥 API CALL
+        // 🔴 FAST TYPO DETECTION (no API call)
+        if (isTypoDomain(hostname)) {
+
+            chrome.storage.local.set({ status: 1 });
+
+            chrome.notifications.create({
+                type: "basic",
+                iconUrl: "icons/danger.png",
+                title: "⚠️ Suspicious Domain",
+                message: "This looks like a fake version of a trusted website!"
+            });
+
+            chrome.action.setIcon({
+                path: {
+                    "16": "icons/danger.png",
+                    "48": "icons/danger.png",
+                    "128": "icons/danger.png"
+                }
+            });
+
+            return;
+        }
+
+        // 🔥 API CALL (FINAL CHECK)
         fetch(API_URL, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ url: tab.url })
+            body: JSON.stringify({ url: url })
         })
 
-        // ✅ FIX: Handle bad responses properly
         .then(res => {
             if (!res.ok) {
                 throw new Error("Server not reachable");
@@ -105,12 +168,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             }
         })
 
-        // ❌ ERROR HANDLING
         .catch(err => {
 
             console.log("API ERROR:", err);
 
-            // fallback icon (optional)
+            // fallback (optional)
             chrome.action.setIcon({
                 path: {
                     "16": "icons/invalid.png",
