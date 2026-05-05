@@ -6,7 +6,7 @@ from difflib import SequenceMatcher
 TRUSTED_DOMAINS = [
     "google.com", "facebook.com", "amazon.com",
     "youtube.com", "yahoo.com", "linkedin.com",
-    "dituniversity.edu.in"
+    "dituniversity.edu.in","microsoft.com"
 ]
 
 KNOWN_BRANDS = [
