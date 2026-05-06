@@ -6,6 +6,7 @@ youtube.com
 dashboard.render.com
 s.w.org
 instagram.com
+pwd-ai.onrender.com/predict
 googletagmanager.com
 linkedin.com
 ajax.googleapis.com
