@@ -46,6 +46,13 @@ def extract_domain(url):
 # =================================
 # INVALID DOMAIN CHECK
 # =================================
+VALID_TLDS = {
+    "com", "org", "net", "edu", "gov",
+    "io", "co", "in", "uk", "us",
+    "biz", "info", "online", "site",
+    "store", "xyz"
+}
+
 def is_invalid_domain(domain):
 
     # Must contain dot
@@ -54,12 +61,21 @@ def is_invalid_domain(domain):
 
     parts = domain.split(".")
 
-    # Invalid TLD
-    if len(parts[-1]) < 2:
+    tld = parts[-1].lower()
+
+    # TLD must contain only alphabets
+    if not tld.isalpha():
+        return True
+
+    # Minimum TLD length
+    if len(tld) < 2:
+        return True
+
+    # TLD must exist in valid list
+    if tld not in VALID_TLDS:
         return True
 
     return False
-
 # =================================
 # CREDENTIAL INJECTION
 # =================================
