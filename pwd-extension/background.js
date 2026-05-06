@@ -1,9 +1,9 @@
 const API_URL = "https://pwd-ai.onrender.com/api/check";
 
 // =====================================
-// INVALID URL DETECTION
+// SIMPLE INVALID URL CHECK
 // =====================================
-function isRealWebsite(url) {
+function isBasicInvalid(url) {
 
     try {
 
@@ -11,45 +11,40 @@ function isRealWebsite(url) {
 
         const hostname = u.hostname;
 
-        // 🔵 Detect search pages
+        // Ignore browser search pages
         if (
             url.includes("google.com/search") ||
             url.includes("?q=")
         ) {
-            return false;
+            return true;
         }
 
-        // 🔵 Must contain dot
+        // Must contain dot
         if (!hostname.includes(".")) {
-            return false;
+            return true;
         }
 
-        const parts = hostname.split(".");
-
-        const tld = parts[parts.length - 1];
-
-        // 🔵 Invalid TLD
-        if (!/^[a-zA-Z]{2,}$/.test(tld)) {
-            return false;
-        }
-
-        return true;
+        return false;
 
     } catch {
 
-        return false;
+        return true;
     }
 }
 
 // =====================================
-// TAB UPDATE LISTENER
+// MAIN TAB LISTENER
 // =====================================
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener(
 
-    if (
-        changeInfo.status === "complete" &&
-        tab.url
-    ) {
+    async (tabId, changeInfo, tab) => {
+
+        if (
+            changeInfo.status !== "complete" ||
+            !tab.url
+        ) {
+            return;
+        }
 
         // Ignore internal browser pages
         if (
@@ -61,18 +56,19 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             return;
         }
 
-        const url = tab.url;
+        const finalURL = tab.url;
 
         // =====================================
-        // STEP 1 → INVALID URL
+        // ONLY BASIC INVALID CHECK
         // =====================================
-        if (!isRealWebsite(url)) {
+        if (isBasicInvalid(finalURL)) {
 
             chrome.storage.local.set({
                 status: "invalid"
             });
 
             chrome.action.setIcon({
+
                 path: {
                     "16": "icons/invalid.png",
                     "48": "icons/invalid.png",
@@ -83,33 +79,31 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             return;
         }
 
-        // =====================================
-        // STEP 2 → API CALL
-        // =====================================
-        fetch(API_URL, {
+        try {
 
-            method: "POST",
+            // =====================================
+            // SEND FINAL URL TO API
+            // =====================================
+            const response = await fetch(API_URL, {
 
-            headers: {
-                "Content-Type": "application/json"
-            },
+                method: "POST",
 
-            body: JSON.stringify({
-                url: url
-            })
-        })
+                headers: {
+                    "Content-Type": "application/json"
+                },
 
-        .then(res => {
+                body: JSON.stringify({
+                    url: finalURL
+                })
+            });
 
-            if (!res.ok) {
-                throw new Error("Server not reachable");
+            if (!response.ok) {
+                throw new Error("Server Error");
             }
 
-            return res.json();
-        })
+            const data = await response.json();
 
-        .then(data => {
-
+            // Save result
             chrome.storage.local.set({
                 status: data.result
             });
@@ -127,7 +121,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
                     title: "⚠️ Phishing Alert",
 
-                    message: "This website may be dangerous!"
+                    message:
+                        "This website may be dangerous!"
                 });
 
                 chrome.action.setIcon({
@@ -143,7 +138,9 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             // =====================================
             // 🔵 INVALID
             // =====================================
-            else if (data.result === "invalid") {
+            else if (
+                data.result === "invalid"
+            ) {
 
                 chrome.action.setIcon({
 
@@ -169,11 +166,13 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                     }
                 });
             }
-        })
 
-        .catch(err => {
+        } catch (err) {
 
-            console.log("API ERROR:", err);
+            console.log(
+                "API ERROR:",
+                err
+            );
 
             // Fallback icon
             chrome.action.setIcon({
@@ -184,6 +183,6 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                     "128": "icons/invalid.png"
                 }
             });
-        });
+        }
     }
-});
+);
