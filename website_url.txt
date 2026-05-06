@@ -3,6 +3,7 @@ facebook.com
 twitter.com
 google.com
 youtube.com
+dashboard.render.com
 s.w.org
 instagram.com
 googletagmanager.com
